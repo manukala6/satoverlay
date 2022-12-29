@@ -1,16 +1,24 @@
 package satoverlay
 
-import geotrellis.raster._
-import scala.math.random
+import geotrellis.spark._
+import geotrellis.proj4.WebMercator
+import geotrellis.layer.ZoomedLayoutScheme
+import geotrellis.raster.geotiff.GeoTiffRasterSource
+
 import org.apache.log4j.{Logger, Level}
-import org.apache.spark.rdd.RDD
 import org.apache.spark.{SparkConf, SparkContext}
 import org.apache.spark.sql.SparkSession
+
+import scala.math.random
+import scala.util.Properties.isWin
 
 object Main extends App {
 
     // Reduce Spark logging verbosity
     Logger.getLogger("org.apache.spark").setLevel(Level.ERROR)
+    if (isWin) {
+        Logger.getLogger("org.apache.spark.util.ShutdownHookManager").setLevel(Level.OFF)
+    }
 
     def conf: SparkConf = new SparkConf()
         .setAppName("satoverlay")
@@ -23,22 +31,15 @@ object Main extends App {
         .enableHiveSupport()
         .getOrCreate()
 
-    def sc: SparkContext = session.sparkContext
+    implicit val sc: SparkContext = session.sparkContext
 
-    val slices = 32
-    val n = math.min(100000L * slices, Int.MaxValue).toInt
+    val uri = "s3://geotrellis-demo/cogs/harrisburg-pa/elevation.tif"
+    val rasterSource = GeoTiffRasterSource(uri)
 
-    val countRdd: RDD[Int] = sc.parallelize(1 to n, slices)
+    val summary = RasterSummary.fromSeq(List(rasterSource))
 
-    val mapRdd: RDD[Int] = countRdd.map { i =>
-        val x = random * 2 - 1
-        val y = random * 2 - 1
-        if (x*x + y*y < 1) 1 else 0
-    }
-
-    val count = mapRdd.reduce{ (a, b) => a + b}
-
-    println(s"Pi is roughly ${4.0 * count / (slices - 1)}")
+    val layout = summary.layoutDefinition(ZoomedLayoutScheme(WebMercator, 256))
+    val layer = RasterSourceRDD.spatial(rasterSource, layout)
 
     sc.stop()
 
