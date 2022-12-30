@@ -1,5 +1,7 @@
 package satoverlay
 
+import satoverlay.Spark._
+
 import geotrellis.spark._
 import geotrellis.proj4.WebMercator
 import geotrellis.layer.ZoomedLayoutScheme
@@ -20,21 +22,16 @@ object Main extends App {
         Logger.getLogger("org.apache.spark.util.ShutdownHookManager").setLevel(Level.OFF)
     }
 
-    def conf: SparkConf = new SparkConf()
-        .setAppName("satoverlay")
-        .setMaster("local[*]")
-        .set("spark.serializer", "org.apache.spark.serializer.KryoSerializer")
-        .set("spark.kryo.registrator", "geotrellis.spark.store.kryo.KryoRegistrator")
-
-    val session: SparkSession = SparkSession.builder
-        .config(conf)
-        .enableHiveSupport()
-        .getOrCreate()
-
-    implicit val sc: SparkContext = session.sparkContext
+    implicit val sc = Spark.sc
 
     val uri = "s3://geotrellis-demo/cogs/harrisburg-pa/elevation.tif"
     val rasterSource = GeoTiffRasterSource(uri)
+
+    println(rasterSource.crs)
+    println(rasterSource.extent)
+    println(rasterSource.cellSize)
+    println(rasterSource.cellType)
+
 
     val summary = RasterSummary.fromSeq(List(rasterSource))
 
